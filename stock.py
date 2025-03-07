@@ -95,18 +95,26 @@ def backtest_strategy(df, signals):
 # ========== 主程序 ==========
 if __name__ == "__main__":
     # 参数设置，支持多只股票
-    symbols = ["000001", "600900","000651","601318","000977","000538","601995","600036","601088","002304"]  # 可以添加更多股票代码
+    symbols = ["000001", "600900","600309","601318","000977","000538","601995","601398","601088","000063"]  # 可以添加更多股票代码
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
 
+    # 获取 A 股代码和名称映射
+    stock_code_name_df = ak.stock_info_a_code_name()
+    print("stock_code_name_df 的列名:", stock_code_name_df.columns)  # 打印列名进行调试
+
+    try:
+        code_name_dict = dict(zip(stock_code_name_df['code'], stock_code_name_df['name']))
+    except KeyError as e:
+        print(f"错误: 找不到列 {e}，请检查数据格式。")
+        # 可以在这里添加处理逻辑，例如使用默认的空字典
+        code_name_dict = {}
+
     for symbol in symbols:
-        # 获取股票名称
-        stock_info = ak.stock_individual_info_em(symbol)
-        try:
-            stock_name = stock_info['value'][stock_info['item'] == '股票名称'].values[0]
-        except IndexError:
+        # 根据代码获取股票名称
+        stock_name = code_name_dict.get(symbol, "")
+        if not stock_name:
             print(f"无法获取 {symbol} 的股票名称，将使用空名称继续处理。")
-            stock_name = ""
 
         # 获取数据
         df = fetch_stock_data(symbol, start_date, end_date)
