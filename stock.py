@@ -94,73 +94,85 @@ def backtest_strategy(df, signals):
 
 # ========== 主程序 ==========
 if __name__ == "__main__":
-    # 参数设置
-    symbol = "000001"  # 股票代码（示例：平安银行）
+    # 参数设置，支持多只股票
+    symbols = ["000001", "600900","000651","601318","000977","000538","601995","600036","601088","002304"]  # 可以添加更多股票代码
     end_date = datetime.now().strftime("%Y%m%d")
     start_date = (datetime.now() - timedelta(days=365)).strftime("%Y%m%d")
-    
-    # 获取数据
-    df = fetch_stock_data(symbol, start_date, end_date)
-    if df is None:
-        exit()
-    
-    # 计算指标并生成信号
-    df = calculate_indicators(df)
-    signals = generate_signals(df)
-    
-    # 回测并输出结果
-    df = backtest_strategy(df, signals)
-    print("===== 最新信号 =====")
-    latest_date = df.index[-1].strftime('%Y-%m-%d')
-    latest_signal = signals.iloc[-1]['signal']
-    signal_text = '买入' if latest_signal == 1 else '卖出' if latest_signal == -1 else '无'
-    print(f"日期: {latest_date}, 信号: {signal_text}")
 
-    # 输出判定依据
-    print("===== 判定依据 =====")
-    latest_row = df.iloc[-1]
-    if latest_signal == 1:
-        conditions = [
-            latest_row['ma5'] > latest_row['ma20'],
-            latest_row['macd'] > latest_row['macd_signal'],
-            latest_row['rsi'] < 30,
-            latest_row['close'] < latest_row['boll_lower'],
-            latest_row['volume_pct_change'] > 0.2
-        ]
-        condition_names = [
-            "均线金叉",
-            "MACD金叉",
-            "RSI超卖",
-            "股价触及BOLL下轨",
-            "成交量放大20%"
-        ]
-        satisfied_conditions = [name for cond, name in zip(conditions, condition_names) if cond]
-        print(f"买入依据: {', '.join(satisfied_conditions)}")
-    elif latest_signal == -1:
-        conditions = [
-            latest_row['macd'] < latest_row['macd_signal'],
-            latest_row['rsi'] > 70,
-            latest_row['close'] > latest_row['boll_upper']
-        ]
-        condition_names = [
-            "MACD死叉",
-            "RSI超买",
-            "BOLL触及上轨"
-        ]
-        satisfied_conditions = [name for cond, name in zip(conditions, condition_names) if cond]
-        print(f"卖出依据: {', '.join(satisfied_conditions)}")
-    else:
-        print("无信号，不满足买卖条件。")
+    for symbol in symbols:
+        # 获取股票名称
+        stock_info = ak.stock_individual_info_em(symbol)
+        try:
+            stock_name = stock_info['value'][stock_info['item'] == '股票名称'].values[0]
+        except IndexError:
+            print(f"无法获取 {symbol} 的股票名称，将使用空名称继续处理。")
+            stock_name = ""
 
-    # 输出股票基本信息
-    print("===== 股票基本信息 =====")
-    print(f"股票代码: {symbol}")
-    print(f"数据起始日期: {start_date}")
-    print(f"数据结束日期: {end_date}")
+        # 获取数据
+        df = fetch_stock_data(symbol, start_date, end_date)
+        if df is None:
+            continue
 
-    print("===== 累计收益率 =====")
-    print(f"{df['cum_returns'].iloc[-1]:.2%}")
-    
-    # 可视化（可选）
-    df[['close', 'ma5', 'ma20', 'boll_upper', 'boll_lower']].plot(figsize=(12,6), title="价格与指标")
-    df['cum_returns'].plot(figsize=(12,4), title="策略累计收益")
+        # 计算指标并生成信号
+        df = calculate_indicators(df)
+        signals = generate_signals(df)
+
+        # 回测并输出结果
+        df = backtest_strategy(df, signals)
+
+        print(f"===== {stock_name}({symbol}) 最新信号 =====")
+        latest_date = df.index[-1].strftime('%Y-%m-%d')
+        latest_signal = signals.iloc[-1]['signal']
+        signal_text = '买入' if latest_signal == 1 else '卖出' if latest_signal == -1 else '无'
+        latest_price = df['close'].iloc[-1]
+        print(f"日期: {latest_date}, 信号: {signal_text}, 最新股价: {latest_price:.2f}")
+
+        # 输出判定依据
+        print("===== 判定依据 =====")
+        latest_row = df.iloc[-1]
+        if latest_signal == 1:
+            conditions = [
+                latest_row['ma5'] > latest_row['ma20'],
+                latest_row['macd'] > latest_row['macd_signal'],
+                latest_row['rsi'] < 30,
+                latest_row['close'] < latest_row['boll_lower'],
+                latest_row['volume_pct_change'] > 0.2
+            ]
+            condition_names = [
+                "均线金叉",
+                "MACD金叉",
+                "RSI超卖",
+                "股价触及BOLL下轨",
+                "成交量放大20%"
+            ]
+            satisfied_conditions = [name for cond, name in zip(conditions, condition_names) if cond]
+            print(f"买入依据: {', '.join(satisfied_conditions)}")
+        elif latest_signal == -1:
+            conditions = [
+                latest_row['macd'] < latest_row['macd_signal'],
+                latest_row['rsi'] > 70,
+                latest_row['close'] > latest_row['boll_upper']
+            ]
+            condition_names = [
+                "MACD死叉",
+                "RSI超买",
+                "BOLL触及上轨"
+            ]
+            satisfied_conditions = [name for cond, name in zip(conditions, condition_names) if cond]
+            print(f"卖出依据: {', '.join(satisfied_conditions)}")
+        else:
+            print("无信号，不满足买卖条件。")
+
+        # 输出股票基本信息
+        print("===== 股票基本信息 =====")
+        print(f"股票名称: {stock_name}")
+        print(f"股票代码: {symbol}")
+        print(f"数据起始日期: {start_date}")
+        print(f"数据结束日期: {end_date}")
+
+        print("===== 累计收益率 =====")
+        print(f"{df['cum_returns'].iloc[-1]:.2%}")
+
+        # 可视化（可选）
+        df[['close', 'ma5', 'ma20', 'boll_upper', 'boll_lower']].plot(figsize=(12, 6), title=f"{stock_name} 价格与指标")
+        df['cum_returns'].plot(figsize=(12, 4), title=f"{stock_name} 策略累计收益")
